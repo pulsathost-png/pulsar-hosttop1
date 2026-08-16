@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>PulSar-Host Control Panel</title>
+
+<link rel="stylesheet" href="style.css">
+
+</head>
+
+
+<body>
+
+
+<header class="header">
+
+<div>
+
+<h1>👑 PulSar-Host Control Panel</h1>
+
+<p>
+Центр управления игровым хостингом
+</p>
+
+</div>
+
+
+<div class="user">
+
+🛡 Admin
+
+</div>
+
+
+</header>
+
+
+
+
+
+<main>
+
+
+<section class="panel">
+
+<h2>
+🎁 Управление промокодами
+</h2>
+
+
+<div class="card">
+
+
+<p>
+Создавайте скидки и специальные предложения для пользователей
+</p>
+
+
+<input 
+id="promoCode"
+placeholder="Название промокода">
+
+
+<input 
+id="discount"
+placeholder="Размер скидки (%)"
+type="number">
+
+
+<input 
+id="maxUses"
+placeholder="Лимит использований"
+type="number">
+
+
+
+<button onclick="createPromo()">
+
+🚀 Создать промокод
+
+</button>
+
+
+
+<p id="promoMessage"></p>
+
+
+</div>
+
+</section>
+
+
+
+
+
+
+
+<section class="panel">
+
+
+<h2>
+🎮 Управление игровыми серверами
+</h2>
+
+
+
+<div class="card">
+
+
+<button onclick="loadAdminServers()">
+
+🔄 Обновить данные
+
+</button>
+
+
+
+<div id="adminServers">
+
+Получение информации...
+
+</div>
+
+
+</div>
+
+
+</section>
+
+
+
+
+
+
+
+
+<section class="panel">
+
+
+<h2>
+👥 Управление пользователями
+</h2>
+
+
+
+<div class="card">
+
+
+<div id="users">
+
+Получение пользователей...
+
+</div>
+
+
+</div>
+
+
+</section>
+
+
+
+
+
+
+
+<section class="panel">
+
+
+<h2>
+📊 Статистика системы
+</h2>
+
+
+
+<div class="stats">
+
+
+<div class="card">
+
+<h3>
+Серверы
+</h3>
+
+<p id="totalServers">
+0
+</p>
+
+</div>
+
+
+
+<div class="card">
+
+<h3>
+Пользователи
+</h3>
+
+<p id="totalUsers">
+0
+</p>
+
+</div>
+
+
+
+<div class="card">
+
+<h3>
+Версия
+</h3>
+
+<p>
+v1.0
+</p>
+
+</div>
+
+
+</div>
+
+
+</section>
+
+
+
+</main>
+
+
+
+
+<script src="admin.js"></script>
+
+
+</body>
+
+</html>
