@@ -1,0 +1,168 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, sans-serif;
+}
+
+body {
+    background: #070b14;
+    color: white;
+    min-height: 100vh;
+}
+
+
+/* Верхняя часть */
+
+.header {
+    padding: 25px;
+    background: #111827;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #334155;
+}
+
+.header h1 {
+    font-size: 32px;
+    color: #38bdf8;
+}
+
+.header p {
+    color: #94a3b8;
+    margin-top: 5px;
+}
+
+
+.user {
+    background: #1e293b;
+    padding: 12px 20px;
+    border-radius: 12px;
+}
+
+
+/* Меню */
+
+.menu {
+    padding: 20px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+
+.menu button {
+    background: #1e293b;
+    color: white;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+
+
+.menu button:hover {
+    background: #2563eb;
+}
+
+
+/* Основная часть */
+
+main {
+    padding: 20px;
+}
+
+
+/* Статистика */
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit,minmax(200px,1fr));
+    gap: 20px;
+}
+
+
+/* Карточки */
+
+.card {
+    background: #111827;
+    border: 1px solid #334155;
+    padding: 20px;
+    border-radius: 15px;
+    margin-top: 20px;
+}
+
+
+.card h3 {
+    color: #38bdf8;
+    margin-bottom: 15px;
+}
+
+
+/* Поля */
+
+input {
+    width: 100%;
+    padding: 14px;
+    margin: 8px 0;
+
+    background: #020617;
+    color: white;
+
+    border: 1px solid #334155;
+    border-radius: 10px;
+}
+
+
+/* Кнопки */
+
+button {
+    background: #2563eb;
+    color: white;
+
+    border: none;
+    padding: 14px 20px;
+
+    border-radius: 10px;
+
+    cursor: pointer;
+}
+
+
+button:hover {
+    background: #1d4ed8;
+}
+
+
+/* Серверы */
+
+#servers {
+    color: #cbd5e1;
+}
+
+
+/* Подвал */
+
+footer {
+    text-align: center;
+    padding: 30px;
+    color: #64748b;
+}
+
+
+/* Телефон */
+
+@media(max-width:600px){
+
+    .header {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+    }
+
+
+    .menu {
+        justify-content: center;
+    }
+
+}
