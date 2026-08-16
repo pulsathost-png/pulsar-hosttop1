@@ -1,0 +1,36 @@
+{
+  "name": "pulsar-host",
+  "version": "1.0.0",
+  "description": "PulSar-Host - Game Server Hosting Platform",
+  "type": "module",
+  "main": "server.js",
+  "author": "PulSar-Host Team",
+  "license": "MIT",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "keywords": [
+    "game-hosting",
+    "server-hosting",
+    "minecraft",
+    "gaming",
+    "pulsar-host"
+  ],
+  "dependencies": {
+    "express": "^5.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "helmet": "^8.1.0",
+    "morgan": "^1.10.0",
+    "jsonwebtoken": "^9.0.2",
+    "bcrypt": "^6.0.0",
+    "sqlite3": "^5.1.7",
+    "multer": "^2.0.0",
+    "express-rate-limit": "^7.5.0",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
