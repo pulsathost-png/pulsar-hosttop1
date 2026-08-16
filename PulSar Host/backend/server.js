@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import helmet from "helmet";
 import morgan from "morgan";
 import rateLimit from "express-rate-limit";
-import { v4 as uuid } from "uuid";
+import database from "./database/db.js";
 
 dotenv.config();
 
@@ -12,46 +12,23 @@ const app = express();
 
 const PORT = process.env.PORT || 3000;
 
+
 // =====================
-// Настройки безопасности
+// Настройки
 // =====================
+
+app.use(cors());
+
+app.use(express.json());
 
 app.use(helmet());
 
-app.use(cors({
-    origin: "*"
-}));
+app.use(morgan("dev"));
 
-app.use(express.json({
-    limit: "2mb"
-}));
-
-app.use(morgan("combined"));
-
-// Защита от большого количества запросов
 app.use(rateLimit({
     windowMs: 60 * 1000,
-    max: 100,
-    message: {
-        error: "Слишком много запросов"
-    }
+    max: 100
 }));
-
-
-// =====================
-// Данные (временно)
-// Потом заменим на БД
-// =====================
-
-let servers = [];
-
-let promoCodes = [
-    {
-        code: "PULSAR35",
-        discount: 35,
-        active: true
-    }
-];
 
 
 // =====================
@@ -61,132 +38,218 @@ let promoCodes = [
 app.get("/", (req,res)=>{
 
     res.json({
-        project: "PulSar-Host",
-        version: "1.0.0",
-        status: "online",
-        message: "Добро пожаловать в игровой хостинг 🚀"
+        name:"PulSar-Host",
+        version:"1.0.0",
+        status:"online",
+        message:"Игровой хостинг работает 🚀"
     });
 
 });
 
 
 // =====================
-// Серверы
+// Пользователи
 // =====================
 
 
-// Получить все серверы
+// Регистрация
 
-app.get("/api/servers",(req,res)=>{
+app.post("/api/register", async(req,res)=>{
 
-    res.json({
-        count: servers.length,
-        servers
-    });
+    try {
+
+        const {
+            username,
+            password,
+            email
+        } = req.body;
+
+
+        const user = await database.run(
+            `
+            INSERT INTO users
+            (username,email,password)
+
+            VALUES(?,?,?)
+            `,
+            [
+                username,
+                email,
+                password
+            ]
+        );
+
+
+        res.json({
+
+            success:true,
+
+            user_id:user.lastID
+
+        });
+
+
+    } catch(error){
+
+        res.status(400).json({
+
+            error:"Пользователь уже существует"
+
+        });
+
+    }
 
 });
+
+
+
+// Получить пользователей
+
+app.get("/api/users", async(req,res)=>{
+
+    const users = await database.all(
+        "SELECT id,username,role,balance FROM users"
+    );
+
+
+    res.json(users);
+
+});
+
+
+
+// =====================
+// Игровые серверы
+// =====================
 
 
 // Создать сервер
 
-app.post("/api/servers",(req,res)=>{
-
-    const {name,game} = req.body;
+app.post("/api/servers", async(req,res)=>{
 
 
-    const server = {
-
-        id: uuid(),
-
-        name: name || "New Server",
-
-        game: game || "Unknown",
-
-        status:"offline",
-
-        cpu:0,
-
-        ram:0,
-
-        players:0,
-
-        created:new Date()
-
-    };
+    const {
+        user_id,
+        name,
+        game
+    } = req.body;
 
 
-    servers.push(server);
+    const server = await database.run(
+
+        `
+        INSERT INTO servers
+        (user_id,name,game)
+
+        VALUES(?,?,?)
+        `,
+
+        [
+            user_id,
+            name,
+            game
+        ]
+
+    );
 
 
     res.json({
+
         success:true,
-        server
+
+        server_id:server.lastID
+
     });
 
 
 });
+
+
+
+// Список серверов
+
+app.get("/api/servers", async(req,res)=>{
+
+
+    const servers = await database.all(
+
+        "SELECT * FROM servers"
+
+    );
+
+
+    res.json(servers);
+
+
+});
+
 
 
 // Запуск сервера
 
-app.post("/api/servers/:id/start",(req,res)=>{
+app.post("/api/servers/:id/start",async(req,res)=>{
 
 
-    const server =
-    servers.find(
-        s=>s.id === req.params.id
+    await database.run(
+
+        `
+        UPDATE servers
+
+        SET status='online'
+
+        WHERE id=?
+
+        `,
+
+        [
+            req.params.id
+        ]
+
     );
 
 
-    if(!server){
-
-        return res.status(404).json({
-            error:"Сервер не найден"
-        });
-
-    }
-
-
-    server.status="online";
-
-
     res.json({
+
         success:true,
-        message:"Сервер запущен",
-        server
+
+        message:"Сервер запущен"
+
     });
 
 
 });
 
 
+
 // Остановка сервера
 
-app.post("/api/servers/:id/stop",(req,res)=>{
+app.post("/api/servers/:id/stop",async(req,res)=>{
 
 
-    const server =
-    servers.find(
-        s=>s.id === req.params.id
+    await database.run(
+
+        `
+        UPDATE servers
+
+        SET status='offline'
+
+        WHERE id=?
+
+        `,
+
+        [
+            req.params.id
+        ]
+
     );
 
 
-    if(!server){
-
-        return res.status(404).json({
-            error:"Сервер не найден"
-        });
-
-    }
-
-
-    server.status="offline";
-
-
     res.json({
+
         success:true,
-        message:"Сервер остановлен",
-        server
+
+        message:"Сервер остановлен"
+
     });
 
 
@@ -198,25 +261,46 @@ app.post("/api/servers/:id/stop",(req,res)=>{
 // =====================
 
 
-app.post("/api/promo/check",(req,res)=>{
+// Проверка промокода
+
+app.post("/api/promo/check",async(req,res)=>{
 
 
-    const {code}=req.body;
+    const {
+        code
+    } = req.body;
 
 
-    const promo =
-    promoCodes.find(
-        p=>p.code === code
+
+    const promo = await database.get(
+
+        `
+        SELECT *
+
+        FROM promo_codes
+
+        WHERE code=?
+
+        `,
+
+        [
+            code
+        ]
+
     );
 
 
-    if(!promo || !promo.active){
+
+    if(!promo){
 
         return res.json({
+
             valid:false
+
         });
 
     }
+
 
 
     res.json({
@@ -228,13 +312,60 @@ app.post("/api/promo/check",(req,res)=>{
     });
 
 
+
 });
 
 
-// =====================
-// Статус системы
-// =====================
 
+// Создание промокода (для админа)
+
+app.post("/api/admin/promo",async(req,res)=>{
+
+
+    const {
+        code,
+        discount,
+        max_uses
+    } = req.body;
+
+
+
+    await database.run(
+
+        `
+        INSERT INTO promo_codes
+
+        (code,discount,max_uses)
+
+        VALUES(?,?,?)
+
+        `,
+
+        [
+            code,
+            discount,
+            max_uses
+        ]
+
+    );
+
+
+    res.json({
+
+        success:true,
+
+        message:"Промокод создан"
+
+    });
+
+
+});
+
+
+
+// =====================
+// Статус
+// =====================
 
 app.get("/api/status",(req,res)=>{
 
@@ -245,9 +376,7 @@ app.get("/api/status",(req,res)=>{
 
         version:"1.0.0",
 
-        status:"online",
-
-        servers:servers.length,
+        online:true,
 
         uptime:process.uptime()
 
@@ -257,6 +386,7 @@ app.get("/api/status",(req,res)=>{
 });
 
 
+
 // =====================
 // Ошибки
 // =====================
@@ -264,17 +394,18 @@ app.get("/api/status",(req,res)=>{
 app.use((err,req,res,next)=>{
 
 
-    console.error(err);
+    console.log(err);
 
 
     res.status(500).json({
 
-        error:"Внутренняя ошибка сервера"
+        error:"Ошибка сервера"
 
     });
 
 
 });
+
 
 
 // =====================
@@ -283,10 +414,14 @@ app.use((err,req,res,next)=>{
 
 app.listen(PORT,()=>{
 
-console.log(`
+
+    console.log(`
 🌌 PulSar-Host v1.0
+
 🚀 Сервер запущен
 📡 Порт: ${PORT}
-`);
+
+    `);
+
 
 });
