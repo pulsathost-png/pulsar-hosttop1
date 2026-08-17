@@ -7,6 +7,11 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 from database import init_database, get_connection
+from auth import (
+    create_token,
+    login_required,
+    get_current_user
+)
 
 from werkzeug.security import (
     generate_password_hash,
@@ -19,7 +24,7 @@ app = Flask(__name__)
 CORS(app)
 
 
-# Запускаем базу
+# Запуск базы
 init_database()
 
 
@@ -33,11 +38,9 @@ def home():
 
     return jsonify({
         "project": "PulSar-Host",
-        "version": "1.0.0",
+        "version": "1.0",
         "status": "online"
     })
-
-
 
 
 
@@ -66,15 +69,10 @@ def status():
     return jsonify({
 
         "online": True,
-
         "users": users,
-
         "servers": servers
 
     })
-
-
-
 
 
 
@@ -95,7 +93,7 @@ def register():
     if not username or not password:
 
         return jsonify({
-            "error":"Заполни поля"
+            "error":"Заполните поля"
         }),400
 
 
@@ -106,7 +104,6 @@ def register():
     try:
 
         db.execute(
-
             """
             INSERT INTO users
             (
@@ -115,42 +112,34 @@ def register():
             )
 
             VALUES (?,?)
-
             """,
 
             (
                 username,
                 generate_password_hash(password)
             )
-
         )
-
 
         db.commit()
 
 
-
-    except Exception:
+    except:
 
         return jsonify({
-
             "error":
-            "Пользователь уже существует"
-
+            "Пользователь существует"
         }),400
 
 
+    finally:
 
-    db.close()
+        db.close()
+
 
 
     return jsonify({
-
         "success":True
-
     })
-
-
 
 
 
@@ -169,18 +158,14 @@ def login():
     password = data.get("password")
 
 
-
     db = get_connection()
 
 
-
     user = db.execute(
-
         """
         SELECT *
         FROM users
         WHERE username=?
-
         """,
 
         (username,)
@@ -188,40 +173,52 @@ def login():
     ).fetchone()
 
 
-
     db.close()
 
 
 
-    if user and check_password_hash(
+    if not user:
+
+        return jsonify({
+            "error":"Неверные данные"
+        }),401
+
+
+
+    if not check_password_hash(
         user["password"],
         password
     ):
 
-
         return jsonify({
+            "error":"Неверные данные"
+        }),401
 
-            "success":True,
 
-            "user":{
 
-                "id":user["id"],
 
-                "username":
-                user["username"],
-
-                "role":
-                user["role"]
-
-            }
-
-        })
-
+    token = create_token(
+        user["id"]
+    )
 
 
     return jsonify({
 
-        "success":False
+        "success":True,
+
+        "token":token,
+
+        "user":{
+
+            "id":user["id"],
+
+            "username":
+            user["username"],
+
+            "role":
+            user["role"]
+
+        }
 
     })
 
@@ -229,39 +226,28 @@ def login():
 
 
 
-
 # =====================================
-# Пользователи
+# Профиль
 # =====================================
 
-@app.route("/api/users")
-def users():
+@app.route("/api/profile")
+@login_required
+def profile():
 
-    db = get_connection()
-
-
-    result = db.execute(
-
-        """
-        SELECT id,username,role
-        FROM users
-
-        """
-
-    ).fetchall()
+    user = get_current_user()
 
 
-    db.close()
+    return jsonify({
 
+        "id":user["id"],
 
-    return jsonify(
-        [
-            dict(x)
-            for x in result
-        ]
-    )
+        "username":
+        user["username"],
 
+        "role":
+        user["role"]
 
+    })
 
 
 
@@ -272,51 +258,47 @@ def users():
 # =====================================
 
 @app.route("/api/servers")
-def get_servers():
+@login_required
+def servers():
 
     db = get_connection()
 
 
     result = db.execute(
-
         """
         SELECT *
         FROM servers
-
         """
-
     ).fetchall()
 
 
     db.close()
 
 
-
     return jsonify(
         [
-            dict(x)
-            for x in result
+            dict(server)
+            for server in result
         ]
     )
 
 
 
 
-
-
-
-@app.route("/api/servers",
-methods=["POST"])
+@app.route("/api/servers", methods=["POST"])
+@login_required
 def create_server():
 
     data = request.json
+
+
+    user = get_current_user()
 
 
     db = get_connection()
 
 
     db.execute(
-
         """
         INSERT INTO servers
         (
@@ -326,14 +308,11 @@ def create_server():
         )
 
         VALUES (?,?,?)
-
         """,
 
         (
-            data.get("user_id",1),
-
+            user["id"],
             data.get("name"),
-
             data.get("game")
         )
 
@@ -356,94 +335,6 @@ def create_server():
 
 
 
-
-
-
-@app.route(
-"/api/servers/<int:id>/start",
-methods=["POST"]
-)
-def start_server(id):
-
-
-    db=get_connection()
-
-
-    db.execute(
-
-        """
-        UPDATE servers
-        SET status='online'
-        WHERE id=?
-
-        """,
-
-        (id,)
-
-    )
-
-
-    db.commit()
-
-    db.close()
-
-
-
-    return jsonify({
-
-        "success":True
-
-    })
-
-
-
-
-
-
-
-@app.route(
-"/api/servers/<int:id>/stop",
-methods=["POST"]
-)
-def stop_server(id):
-
-
-    db=get_connection()
-
-
-    db.execute(
-
-        """
-        UPDATE servers
-        SET status='offline'
-        WHERE id=?
-
-        """,
-
-        (id,)
-
-    )
-
-
-    db.commit()
-
-    db.close()
-
-
-
-    return jsonify({
-
-        "success":True
-
-    })
-
-
-
-
-
-
-
-
 # =====================================
 # Промокоды
 # =====================================
@@ -452,33 +343,28 @@ def stop_server(id):
 "/api/promo/check",
 methods=["POST"]
 )
-def promo_check():
+def check_promo():
 
-    data=request.json
-
-
-    code=data.get("code")
+    data = request.json
 
 
-
-    db=get_connection()
-
+    code = data.get("code")
 
 
-    promo=db.execute(
+    db = get_connection()
 
+
+    promo = db.execute(
         """
         SELECT *
         FROM promo_codes
         WHERE code=?
         AND active=1
-
         """,
 
         (code,)
 
     ).fetchone()
-
 
 
     db.close()
@@ -497,7 +383,6 @@ def promo_check():
         })
 
 
-
     return jsonify({
 
         "valid":False
@@ -508,13 +393,11 @@ def promo_check():
 
 
 
-
 # =====================================
 # Запуск
 # =====================================
 
 if __name__ == "__main__":
-
 
     app.run(
 
