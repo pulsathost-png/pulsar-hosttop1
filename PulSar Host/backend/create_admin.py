@@ -1,212 +1,79 @@
-# =====================================
-# 🌌 PulSar-Host v1.0
-# Admin Creator System
-# =====================================
-
-from database import init_database, get_connection
-from werkzeug.security import generate_password_hash
-from datetime import datetime
-import getpass
+from database import get_db, init_db
+import hashlib
+import secrets
 
 
+# Создание админа
 
-# Инициализация базы
+def create_admin():
 
-init_database()
+    init_db()
 
-
-
-print("""
-=================================
-🌌 PulSar-Host Admin Creator
-=================================
-""")
+    db = get_db()
 
 
-
-# Получаем данные
-
-username = input(
-    "Введите логин администратора: "
-).strip()
+    username = "admin"
+    password = "admin123"
 
 
-
-password = getpass.getpass(
-    "Введите пароль администратора: "
-)
-
-
-
-if not username or not password:
-
-    print(
-        "❌ Логин и пароль обязательны"
-    )
-
-    exit()
-
-
-
-
-
-db = get_connection()
-
-
-
-try:
-
-
-    # Проверяем пользователя
-
-    existing = db.execute(
-
-        """
-        SELECT *
-        FROM users
-        WHERE username=?
-
-        """,
-
+    # Проверяем есть ли админ
+    check = db.execute(
+        "SELECT * FROM users WHERE username=?",
         (username,)
-
     ).fetchone()
 
 
+    if check:
+        print("Администратор уже существует")
+        return
 
 
 
-    if existing:
+    token = secrets.token_hex(32)
 
 
-        print(
-            "⚠️ Такой пользователь уже существует"
-        )
+    password_hash = hashlib.sha256(
+        password.encode()
+    ).hexdigest()
 
 
-        # Обновляем роль
-
-        db.execute(
-
-            """
-            UPDATE users
-            SET role='admin'
-
-            WHERE username=?
-
-            """,
-
-            (username,)
-
-        )
-
-
-        db.commit()
-
-
-
-        print(
-            "👑 Пользователь назначен администратором"
-        )
-
-
-
-    else:
-
-
-        # Создание нового админа
-
-        db.execute(
-
-            """
-            INSERT INTO users
-            (
-            username,
-            password,
-            role
-            )
-
-            VALUES (?,?,?)
-
-            """,
-
-            (
-
-                username,
-
-                generate_password_hash(
-                    password
-                ),
-
-                "admin"
-
-            )
-
-        )
-
-
-        db.commit()
-
-
-
-        print(
-            "✅ Администратор успешно создан"
-        )
-
-
-
-
-
-    # Запись в логи
 
     db.execute(
-
         """
-        INSERT INTO logs
+        INSERT INTO users
         (
-        action
+        username,
+        password,
+        token,
+        balance,
+        role
         )
 
-        VALUES (?)
-
+        VALUES(?,?,?,?,?)
         """,
-
         (
-
-        f"Создан администратор {username}"
-
+            username,
+            password_hash,
+            token,
+            0,
+            "admin"
         )
-
     )
 
 
     db.commit()
 
-
-
-
-
-except Exception as error:
-
-
-    print(
-        "❌ Ошибка:",
-        error
-    )
-
-
-
-finally:
-
-
     db.close()
 
 
+    print("Администратор создан!")
+    print("Логин:", username)
+    print("Пароль:", password)
+    print("Token:", token)
 
 
 
-print("""
-=================================
-🚀 PulSar-Host Admin Ready
-=================================
-""")
+
+if __name__ == "__main__":
+
+    create_admin()
