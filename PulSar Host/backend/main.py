@@ -1,6 +1,6 @@
 # =====================================
 # 🌌 PulSar-Host v1.0
-# Python Backend
+# Main Backend
 # =====================================
 
 from flask import Flask, jsonify, request
@@ -8,7 +8,10 @@ from flask_cors import CORS
 
 from database import init_database, get_connection
 
-from datetime import datetime
+from werkzeug.security import (
+    generate_password_hash,
+    check_password_hash
+)
 
 
 app = Flask(__name__)
@@ -16,7 +19,7 @@ app = Flask(__name__)
 CORS(app)
 
 
-# Запуск базы данных
+# Запускаем базу
 init_database()
 
 
@@ -29,20 +32,17 @@ init_database()
 def home():
 
     return jsonify({
-
         "project": "PulSar-Host",
-
         "version": "1.0.0",
-
         "status": "online"
-
     })
 
 
 
 
+
 # =====================================
-# Статус системы
+# Статус
 # =====================================
 
 @app.route("/api/status")
@@ -65,8 +65,6 @@ def status():
 
     return jsonify({
 
-        "hosting": "PulSar-Host",
-
         "online": True,
 
         "users": users,
@@ -74,6 +72,7 @@ def status():
         "servers": servers
 
     })
+
 
 
 
@@ -90,17 +89,13 @@ def register():
 
 
     username = data.get("username")
-
     password = data.get("password")
-
 
 
     if not username or not password:
 
         return jsonify({
-
-            "error": "Заполните поля"
-
+            "error":"Заполни поля"
         }),400
 
 
@@ -114,14 +109,18 @@ def register():
 
             """
             INSERT INTO users
-            (username,password)
+            (
+            username,
+            password
+            )
 
             VALUES (?,?)
+
             """,
 
             (
                 username,
-                password
+                generate_password_hash(password)
             )
 
         )
@@ -130,8 +129,8 @@ def register():
         db.commit()
 
 
-    except Exception:
 
+    except Exception:
 
         return jsonify({
 
@@ -145,10 +144,9 @@ def register():
     db.close()
 
 
-
     return jsonify({
 
-        "success": True
+        "success":True
 
     })
 
@@ -168,7 +166,6 @@ def login():
 
 
     username = data.get("username")
-
     password = data.get("password")
 
 
@@ -176,19 +173,17 @@ def login():
     db = get_connection()
 
 
+
     user = db.execute(
 
         """
-        SELECT * FROM users
+        SELECT *
+        FROM users
         WHERE username=?
-        AND password=?
 
         """,
 
-        (
-            username,
-            password
-        )
+        (username,)
 
     ).fetchone()
 
@@ -198,20 +193,25 @@ def login():
 
 
 
-    if user:
+    if user and check_password_hash(
+        user["password"],
+        password
+    ):
 
 
         return jsonify({
 
-            "success": True,
+            "success":True,
 
-            "user": {
+            "user":{
 
-                "id": user["id"],
+                "id":user["id"],
 
-                "username": user["username"],
+                "username":
+                user["username"],
 
-                "role": user["role"]
+                "role":
+                user["role"]
 
             }
 
@@ -221,9 +221,45 @@ def login():
 
     return jsonify({
 
-        "success": False
+        "success":False
 
     })
+
+
+
+
+
+
+# =====================================
+# Пользователи
+# =====================================
+
+@app.route("/api/users")
+def users():
+
+    db = get_connection()
+
+
+    result = db.execute(
+
+        """
+        SELECT id,username,role
+        FROM users
+
+        """
+
+    ).fetchall()
+
+
+    db.close()
+
+
+    return jsonify(
+        [
+            dict(x)
+            for x in result
+        ]
+    )
 
 
 
@@ -235,10 +271,8 @@ def login():
 # Серверы
 # =====================================
 
-
 @app.route("/api/servers")
-def servers():
-
+def get_servers():
 
     db = get_connection()
 
@@ -254,12 +288,16 @@ def servers():
     ).fetchall()
 
 
-
     db.close()
 
 
 
-    return jsonify([dict(x) for x in result])
+    return jsonify(
+        [
+            dict(x)
+            for x in result
+        ]
+    )
 
 
 
@@ -267,9 +305,9 @@ def servers():
 
 
 
-@app.route("/api/servers", methods=["POST"])
+@app.route("/api/servers",
+methods=["POST"])
 def create_server():
-
 
     data = request.json
 
@@ -280,23 +318,23 @@ def create_server():
     db.execute(
 
         """
-
         INSERT INTO servers
-
-        (user_id,name,game)
+        (
+        user_id,
+        name,
+        game
+        )
 
         VALUES (?,?,?)
 
         """,
 
         (
-
             data.get("user_id",1),
 
             data.get("name"),
 
             data.get("game")
-
         )
 
     )
@@ -310,7 +348,7 @@ def create_server():
 
     return jsonify({
 
-        "success": True
+        "success":True
 
     })
 
@@ -320,22 +358,22 @@ def create_server():
 
 
 
-@app.route("/api/servers/<int:id>/start",
-methods=["POST"])
+
+@app.route(
+"/api/servers/<int:id>/start",
+methods=["POST"]
+)
 def start_server(id):
 
 
-    db = get_connection()
+    db=get_connection()
 
 
     db.execute(
 
         """
-
         UPDATE servers
-
         SET status='online'
-
         WHERE id=?
 
         """,
@@ -353,9 +391,7 @@ def start_server(id):
 
     return jsonify({
 
-        "success":True,
-
-        "status":"online"
+        "success":True
 
     })
 
@@ -365,22 +401,21 @@ def start_server(id):
 
 
 
-@app.route("/api/servers/<int:id>/stop",
-methods=["POST"])
+@app.route(
+"/api/servers/<int:id>/stop",
+methods=["POST"]
+)
 def stop_server(id):
 
 
-    db = get_connection()
+    db=get_connection()
 
 
     db.execute(
 
         """
-
         UPDATE servers
-
         SET status='offline'
-
         WHERE id=?
 
         """,
@@ -398,11 +433,10 @@ def stop_server(id):
 
     return jsonify({
 
-        "success":True,
-
-        "status":"offline"
+        "success":True
 
     })
+
 
 
 
@@ -414,32 +448,29 @@ def stop_server(id):
 # Промокоды
 # =====================================
 
+@app.route(
+"/api/promo/check",
+methods=["POST"]
+)
+def promo_check():
 
-@app.route("/api/promo/check",
-methods=["POST"])
-def check_promo():
-
-
-    data = request.json
-
-
-    code = data.get("code")
+    data=request.json
 
 
+    code=data.get("code")
 
-    db = get_connection()
 
 
-    promo = db.execute(
+    db=get_connection()
+
+
+
+    promo=db.execute(
 
         """
-
         SELECT *
-
         FROM promo_codes
-
         WHERE code=?
-
         AND active=1
 
         """,
@@ -456,12 +487,12 @@ def check_promo():
 
     if promo:
 
-
         return jsonify({
 
             "valid":True,
 
-            "discount":promo["discount"]
+            "discount":
+            promo["discount"]
 
         })
 
@@ -472,7 +503,6 @@ def check_promo():
         "valid":False
 
     })
-
 
 
 
@@ -494,4 +524,4 @@ if __name__ == "__main__":
 
         debug=True
 
-        )
+    )
