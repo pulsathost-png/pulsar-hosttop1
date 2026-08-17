@@ -1,261 +1,175 @@
-# =====================================
-# 🌌 PulSar-Host v1.0
-# Advanced Authentication System
-# =====================================
-
-from functools import wraps
-from flask import request, jsonify
-from database import get_connection
+from flask import Blueprint, request, jsonify
+from database import get_db
+import hashlib
 import secrets
-from datetime import datetime, timedelta
+
+
+auth = Blueprint("auth", __name__)
+
+
+# Хеш пароля
+def hash_password(password):
+
+    return hashlib.sha256(
+        password.encode()
+    ).hexdigest()
 
 
 
-# Временное хранилище токенов
-# Позже можно перенести в таблицу sessions
+# Регистрация
+@auth.route("/register", methods=["POST"])
+def register():
 
-sessions = {}
+    data = request.json
+
+    username = data["username"]
+    password = data["password"]
 
 
+    db = get_db()
 
-# =====================================
-# Создание токена
-# =====================================
 
-def create_token(user_id):
+    check = db.execute(
+        "SELECT * FROM users WHERE username=?",
+        (username,)
+    ).fetchone()
+
+
+    if check:
+        return jsonify({
+            "error":"Пользователь уже существует"
+        }),400
+
+
 
     token = secrets.token_hex(32)
 
 
-    sessions[token] = {
-
-        "user_id": user_id,
-
-        "created": datetime.now(),
-
-        "expires":
-        datetime.now() + timedelta(hours=24)
-
-    }
-
-
-    return token
-
-
-
-
-
-# =====================================
-# Получение пользователя
-# =====================================
-
-def get_current_user():
-
-
-    token = request.headers.get(
-        "Authorization"
-    )
-
-
-    if not token:
-
-        return None
-
-
-
-    session = sessions.get(
-        token
-    )
-
-
-    if not session:
-
-        return None
-
-
-
-
-    if datetime.now() > session["expires"]:
-
-        del sessions[token]
-
-        return None
-
-
-
-
-
-    db = get_connection()
-
-
-
-    user = db.execute(
-
+    db.execute(
         """
-        SELECT id,username,role,balance
-        FROM users
-        WHERE id=?
+        INSERT INTO users
+        (username,password,token)
 
+        VALUES(?,?,?)
         """,
-
         (
-            session["user_id"],
+            username,
+            hash_password(password),
+            token
         )
+    )
 
+
+    db.commit()
+
+
+    return jsonify({
+
+        "message":"Аккаунт создан",
+
+        "token":token
+
+    })
+
+
+
+
+
+# Авторизация
+@auth.route("/login", methods=["POST"])
+def login():
+
+    data=request.json
+
+
+    username=data["username"]
+    password=hash_password(
+        data["password"]
+    )
+
+
+    db=get_db()
+
+
+    user=db.execute(
+        """
+        SELECT *
+        FROM users
+        WHERE username=? AND password=?
+        """,
+        (
+            username,
+            password
+        )
     ).fetchone()
 
 
 
-    db.close()
+    if not user:
+
+        return jsonify({
+            "error":"Неверный логин или пароль"
+        }),401
 
 
 
-    return user
+    token=secrets.token_hex(32)
 
 
-
-
-
-# =====================================
-# Требуется авторизация
-# =====================================
-
-def login_required(function):
-
-
-    @wraps(function)
-
-    def wrapper(*args, **kwargs):
-
-
-        user = get_current_user()
-
-
-
-        if not user:
-
-
-            return jsonify({
-
-                "success":False,
-
-                "error":
-                "Требуется вход"
-
-            }),401
-
-
-
-
-        return function(
-            *args,
-            **kwargs
+    db.execute(
+        """
+        UPDATE users
+        SET token=?
+        WHERE id=?
+        """,
+        (
+            token,
+            user["id"]
         )
+    )
 
 
-    return wrapper
+    db.commit()
 
 
 
+    return jsonify({
 
+        "message":"Вход выполнен",
 
+        "token":token,
 
-# =====================================
-# Только администратор
-# =====================================
+        "role":user["role"]
 
-def admin_required(function):
+    })
 
 
-    @wraps(function)
 
-    def wrapper(*args, **kwargs):
 
 
-        user = get_current_user()
+# Выход
+@auth.route("/logout", methods=["POST"])
+def logout():
 
+    token=request.headers.get("token")
 
 
-        if not user:
+    db=get_db()
 
 
-            return jsonify({
+    db.execute(
+        """
+        UPDATE users
+        SET token=NULL
+        WHERE token=?
+        """,
+        (token,)
+    )
 
-                "success":False,
 
-                "error":
-                "Нет авторизации"
+    db.commit()
 
-            }),401
 
-
-
-
-
-        if user["role"] != "admin":
-
-
-            return jsonify({
-
-                "success":False,
-
-                "error":
-                "Недостаточно прав"
-
-            }),403
-
-
-
-
-
-        return function(
-            *args,
-            **kwargs
-        )
-
-
-    return wrapper
-
-
-
-
-
-
-# =====================================
-# Проверка владельца сервера
-# =====================================
-
-def owner_required(function):
-
-
-    @wraps(function)
-
-    def wrapper(*args, **kwargs):
-
-
-        user = get_current_user()
-
-
-
-        if not user:
-
-
-            return jsonify({
-
-                "error":
-                "Не авторизован"
-
-            }),401
-
-
-
-
-
-        return function(
-            user,
-            *args,
-            **kwargs
-        )
-
-
-    return wrapper
+    return jsonify({
+        "message":"Вы вышли"
+    })
