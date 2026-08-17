@@ -5,33 +5,19 @@
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+
+from database import init_database, get_connection
+
 from datetime import datetime
-import uuid
 
 
 app = Flask(__name__)
 
-# Разрешаем подключение frontend
 CORS(app)
 
 
-
-# =====================================
-# Временное хранилище
-# Потом подключим database.py
-# =====================================
-
-users = []
-
-servers = []
-
-promo_codes = [
-    {
-        "code": "PULSAR35",
-        "discount": 35,
-        "active": True
-    }
-]
+# Запуск базы данных
+init_database()
 
 
 
@@ -48,12 +34,9 @@ def home():
 
         "version": "1.0.0",
 
-        "status": "online",
-
-        "time": datetime.now()
+        "status": "online"
 
     })
-
 
 
 
@@ -65,15 +48,30 @@ def home():
 @app.route("/api/status")
 def status():
 
+    db = get_connection()
+
+    users = db.execute(
+        "SELECT COUNT(*) FROM users"
+    ).fetchone()[0]
+
+
+    servers = db.execute(
+        "SELECT COUNT(*) FROM servers"
+    ).fetchone()[0]
+
+
+    db.close()
+
+
     return jsonify({
 
         "hosting": "PulSar-Host",
 
         "online": True,
 
-        "servers": len(servers),
+        "users": users,
 
-        "users": len(users)
+        "servers": servers
 
     })
 
@@ -81,9 +79,8 @@ def status():
 
 
 
-
 # =====================================
-# Пользователи
+# Регистрация
 # =====================================
 
 @app.route("/api/register", methods=["POST"])
@@ -92,30 +89,66 @@ def register():
     data = request.json
 
 
-    user = {
+    username = data.get("username")
 
-        "id": str(uuid.uuid4()),
-
-        "username": data.get("username"),
-
-        "password": data.get("password"),
-
-        "role": "user",
-
-        "created":
-        str(datetime.now())
-
-    }
+    password = data.get("password")
 
 
-    users.append(user)
+
+    if not username or not password:
+
+        return jsonify({
+
+            "error": "Заполните поля"
+
+        }),400
+
+
+
+    db = get_connection()
+
+
+    try:
+
+        db.execute(
+
+            """
+            INSERT INTO users
+            (username,password)
+
+            VALUES (?,?)
+            """,
+
+            (
+                username,
+                password
+            )
+
+        )
+
+
+        db.commit()
+
+
+    except Exception:
+
+
+        return jsonify({
+
+            "error":
+            "Пользователь уже существует"
+
+        }),400
+
+
+
+    db.close()
+
 
 
     return jsonify({
 
-        "success": True,
-
-        "user": user
+        "success": True
 
     })
 
@@ -124,10 +157,74 @@ def register():
 
 
 
-@app.route("/api/users")
-def get_users():
+# =====================================
+# Вход
+# =====================================
 
-    return jsonify(users)
+@app.route("/api/login", methods=["POST"])
+def login():
+
+    data = request.json
+
+
+    username = data.get("username")
+
+    password = data.get("password")
+
+
+
+    db = get_connection()
+
+
+    user = db.execute(
+
+        """
+        SELECT * FROM users
+        WHERE username=?
+        AND password=?
+
+        """,
+
+        (
+            username,
+            password
+        )
+
+    ).fetchone()
+
+
+
+    db.close()
+
+
+
+    if user:
+
+
+        return jsonify({
+
+            "success": True,
+
+            "user": {
+
+                "id": user["id"],
+
+                "username": user["username"],
+
+                "role": user["role"]
+
+            }
+
+        })
+
+
+
+    return jsonify({
+
+        "success": False
+
+    })
+
 
 
 
@@ -139,10 +236,31 @@ def get_users():
 # =====================================
 
 
-@app.route("/api/servers", methods=["GET"])
-def get_servers():
+@app.route("/api/servers")
+def servers():
 
-    return jsonify(servers)
+
+    db = get_connection()
+
+
+    result = db.execute(
+
+        """
+        SELECT *
+        FROM servers
+
+        """
+
+    ).fetchall()
+
+
+
+    db.close()
+
+
+
+    return jsonify([dict(x) for x in result])
+
 
 
 
@@ -152,33 +270,47 @@ def get_servers():
 @app.route("/api/servers", methods=["POST"])
 def create_server():
 
+
     data = request.json
 
 
-    server = {
-
-        "id": str(uuid.uuid4()),
-
-        "name": data.get("name"),
-
-        "game": data.get("game"),
-
-        "status": "offline",
-
-        "created":
-        str(datetime.now())
-
-    }
+    db = get_connection()
 
 
-    servers.append(server)
+    db.execute(
+
+        """
+
+        INSERT INTO servers
+
+        (user_id,name,game)
+
+        VALUES (?,?,?)
+
+        """,
+
+        (
+
+            data.get("user_id",1),
+
+            data.get("name"),
+
+            data.get("game")
+
+        )
+
+    )
+
+
+    db.commit()
+
+    db.close()
+
 
 
     return jsonify({
 
-        "success": True,
-
-        "server": server
+        "success": True
 
     })
 
@@ -187,69 +319,90 @@ def create_server():
 
 
 
-@app.route("/api/servers/<server_id>/start",
+
+@app.route("/api/servers/<int:id>/start",
 methods=["POST"])
-def start_server(server_id):
+def start_server(id):
 
 
-    for server in servers:
-
-        if server["id"] == server_id:
-
-            server["status"] = "online"
+    db = get_connection()
 
 
-            return jsonify({
+    db.execute(
 
-                "success": True,
+        """
 
-                "message":
-                "Сервер запущен"
+        UPDATE servers
 
-            })
+        SET status='online'
+
+        WHERE id=?
+
+        """,
+
+        (id,)
+
+    )
+
+
+    db.commit()
+
+    db.close()
+
 
 
     return jsonify({
 
-        "error":
-        "Сервер не найден"
+        "success":True,
 
-    }),404
+        "status":"online"
 
-
-
+    })
 
 
 
 
-@app.route("/api/servers/<server_id>/stop",
+
+
+
+@app.route("/api/servers/<int:id>/stop",
 methods=["POST"])
-def stop_server(server_id):
+def stop_server(id):
 
 
-    for server in servers:
-
-        if server["id"] == server_id:
-
-            server["status"] = "offline"
+    db = get_connection()
 
 
-            return jsonify({
+    db.execute(
 
-                "success": True,
+        """
 
-                "message":
-                "Сервер остановлен"
+        UPDATE servers
 
-            })
+        SET status='offline'
+
+        WHERE id=?
+
+        """,
+
+        (id,)
+
+    )
+
+
+    db.commit()
+
+    db.close()
+
 
 
     return jsonify({
 
-        "error":
-        "Сервер не найден"
+        "success":True,
 
-    }),404
+        "status":"offline"
+
+    })
 
 
 
@@ -274,47 +427,53 @@ def check_promo():
 
 
 
-    for promo in promo_codes:
+    db = get_connection()
 
 
-        if promo["code"] == code and promo["active"]:
+    promo = db.execute(
+
+        """
+
+        SELECT *
+
+        FROM promo_codes
+
+        WHERE code=?
+
+        AND active=1
+
+        """,
+
+        (code,)
+
+    ).fetchone()
 
 
-            return jsonify({
 
-                "valid": True,
+    db.close()
 
-                "discount":
-                promo["discount"]
 
-            })
+
+    if promo:
+
+
+        return jsonify({
+
+            "valid":True,
+
+            "discount":promo["discount"]
+
+        })
 
 
 
     return jsonify({
 
-        "valid": False
+        "valid":False
 
     })
 
 
-
-
-
-
-# =====================================
-# Ошибки
-# =====================================
-
-@app.errorhandler(500)
-def error(error):
-
-    return jsonify({
-
-        "error":
-        "Внутренняя ошибка сервера"
-
-    }),500
 
 
 
@@ -326,8 +485,13 @@ def error(error):
 
 if __name__ == "__main__":
 
+
     app.run(
+
         host="0.0.0.0",
+
         port=5000,
+
         debug=True
-    )
+
+        )
