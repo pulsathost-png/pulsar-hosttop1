@@ -7,16 +7,20 @@ import sqlite3
 import os
 
 
+
 # Путь к базе
 
 BASE_DIR = os.path.dirname(
     os.path.abspath(__file__)
 )
 
+
 DB_PATH = os.path.join(
     BASE_DIR,
     "pulsar.db"
 )
+
+
 
 
 
@@ -35,7 +39,8 @@ def get_connection():
 
 
 
-# Создание таблиц
+
+# Создание базы
 
 def init_database():
 
@@ -58,10 +63,13 @@ def init_database():
 
         role TEXT DEFAULT 'user',
 
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        balance INTEGER DEFAULT 0,
+
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 
     )
     """)
+
 
 
 
@@ -80,10 +88,25 @@ def init_database():
 
         status TEXT DEFAULT 'offline',
 
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        cpu INTEGER DEFAULT 0,
+
+        ram INTEGER DEFAULT 0,
+
+        storage INTEGER DEFAULT 0,
+
+        players INTEGER DEFAULT 0,
+
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+
+        FOREIGN KEY(user_id)
+
+        REFERENCES users(id)
 
     )
     """)
+
+
 
 
 
@@ -102,23 +125,29 @@ def init_database():
 
         used INTEGER DEFAULT 0,
 
-        active INTEGER DEFAULT 1
+        active INTEGER DEFAULT 1,
+
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 
     )
     """)
 
 
 
-    # Логи
+
+
+    # Логи действий
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS logs (
 
         id INTEGER PRIMARY KEY AUTOINCREMENT,
 
+        user_id INTEGER,
+
         action TEXT,
 
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 
     )
     """)
@@ -126,14 +155,81 @@ def init_database():
 
 
 
-    # Первый промокод
+
+    # Настройки хостинга
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS settings (
+
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        name TEXT UNIQUE,
+
+        value TEXT
+
+    )
+    """)
+
+
+
+
+
+    # Создаем стартовый промокод
 
     cursor.execute("""
     INSERT OR IGNORE INTO promo_codes
-    (code, discount, max_uses)
+    (
+        code,
+        discount,
+        max_uses
+    )
+
     VALUES
-    ('PULSAR35',35,100)
+    (
+        'PULSAR35',
+        35,
+        100
+    )
     """)
+
+
+
+
+
+
+    # Основные настройки
+
+    cursor.execute("""
+    INSERT OR IGNORE INTO settings
+    (
+        name,
+        value
+    )
+
+    VALUES
+    (
+        'hosting_name',
+        'PulSar-Host'
+    )
+    """)
+
+
+
+    cursor.execute("""
+    INSERT OR IGNORE INTO settings
+    (
+        name,
+        value
+    )
+
+    VALUES
+    (
+        'version',
+        '1.0.0'
+    )
+    """)
+
+
 
 
 
@@ -144,12 +240,15 @@ def init_database():
 
 
     print(
-        "💾 База PulSar-Host создана"
+        "💾 PulSar-Host Database готова"
     )
 
 
 
-# Запуск создания базы
+
+
+
+# Проверка запуска
 
 if __name__ == "__main__":
 
