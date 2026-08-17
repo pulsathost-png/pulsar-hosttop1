@@ -1,112 +1,212 @@
 from flask import Blueprint, request, jsonify
 from database import get_db
-from auth import verify_token
+import secrets
+from datetime import datetime, timedelta
+
 
 admin = Blueprint("admin", __name__)
 
 
-def admin_required():
-    token = request.headers.get("Authorization")
+# Проверка администратора
+def check_admin(token):
 
-    if not token:
-        return None, jsonify({"error": "Token required"}), 401
+    db = get_db()
 
-    user = verify_token(token)
+    user = db.execute(
+        """
+        SELECT *
+        FROM users
+        WHERE token=? AND role='admin'
+        """,
+        (token,)
+    ).fetchone()
 
-    if not user:
-        return None, jsonify({"error": "Invalid token"}), 401
+    db.close()
 
-    if user["role"] != "admin":
-        return None, jsonify({"error": "Admin access required"}), 403
-
-    return user, None, None
+    return user
 
 
-# Получить всех пользователей
+
+# Все пользователи
 @admin.route("/admin/users", methods=["GET"])
 def get_users():
-    user, error, code = admin_required()
 
-    if error:
-        return error, code
+    token = request.headers.get("token")
+
+    if not check_admin(token):
+        return jsonify({"error": "Нет доступа"}), 403
+
 
     db = get_db()
+
     users = db.execute(
-        "SELECT id, username, email, role FROM users"
+        """
+        SELECT id, username, balance, role
+        FROM users
+        """
     ).fetchall()
 
+
     return jsonify([
-        dict(u) for u in users
+        dict(user)
+        for user in users
     ])
 
 
-# Получить все игровые серверы
-@admin.route("/admin/servers", methods=["GET"])
-def get_servers():
-    user, error, code = admin_required()
-
-    if error:
-        return error, code
-
-    db = get_db()
-    servers = db.execute(
-        "SELECT * FROM servers"
-    ).fetchall()
-
-    return jsonify([
-        dict(s) for s in servers
-    ])
 
 
-# Создать сервер
-@admin.route("/admin/server/create", methods=["POST"])
-def create_server():
-    user, error, code = admin_required()
+# Выдать баланс
+@admin.route("/admin/add_balance", methods=["POST"])
+def add_balance():
 
-    if error:
-        return error, code
+    token = request.headers.get("token")
+
+    if not check_admin(token):
+        return jsonify({"error": "Нет доступа"}),403
+
 
     data = request.json
 
-    name = data.get("name")
-    game = data.get("game")
-    ram = data.get("ram")
+    user_id = data["user_id"]
+    amount = data["amount"]
+
 
     db = get_db()
 
     db.execute(
         """
-        INSERT INTO servers
-        (name, game, ram, status)
-        VALUES (?, ?, ?, ?)
+        UPDATE users
+        SET balance = balance + ?
+        WHERE id=?
         """,
-        (name, game, ram, "offline")
+        (amount,user_id)
     )
+
 
     db.commit()
 
+
     return jsonify({
-        "message": "Server created"
+        "message":"Баланс изменён"
     })
 
 
-# Удалить сервер
-@admin.route("/admin/server/delete/<int:id>", methods=["DELETE"])
-def delete_server(id):
-    user, error, code = admin_required()
 
-    if error:
-        return error, code
+
+
+# Создание сервера пользователю
+@admin.route("/admin/create_server", methods=["POST"])
+def create_server():
+
+    token = request.headers.get("token")
+
+    if not check_admin(token):
+        return jsonify({"error":"Нет доступа"}),403
+
+
+    data = request.json
+
+
+    user_id = data["user_id"]
+    game = data["game"]
+    ram = data.get("ram",2048)
+
+
+    name = "PulSar-" + secrets.token_hex(3)
+
 
     db = get_db()
 
+
     db.execute(
-        "DELETE FROM servers WHERE id=?",
-        (id,)
+        """
+        INSERT INTO servers
+        (user_id,name,game,ram,status,created)
+
+        VALUES(?,?,?,?,?,?)
+        """,
+        (
+            user_id,
+            name,
+            game,
+            ram,
+            "offline",
+            datetime.now().isoformat()
+        )
     )
+
 
     db.commit()
 
+
     return jsonify({
-        "message": "Server deleted"
+        "message":"Сервер создан",
+        "server":name
+    })
+
+
+
+
+
+# Список серверов
+@admin.route("/admin/servers", methods=["GET"])
+def servers():
+
+    token = request.headers.get("token")
+
+    if not check_admin(token):
+        return jsonify({"error":"Нет доступа"}),403
+
+
+    db=get_db()
+
+    servers=db.execute(
+        """
+        SELECT *
+        FROM servers
+        """
+    ).fetchall()
+
+
+    return jsonify([
+        dict(server)
+        for server in servers
+    ])
+
+
+
+
+# Продление сервера
+@admin.route("/admin/extend_server", methods=["POST"])
+def extend_server():
+
+    token=request.headers.get("token")
+
+    if not check_admin(token):
+        return jsonify({"error":"Нет доступа"}),403
+
+
+    data=request.json
+
+    server_id=data["server_id"]
+
+
+    db=get_db()
+
+
+    db.execute(
+        """
+        UPDATE servers
+        SET status='active'
+        WHERE id=?
+        """,
+        (server_id,)
+    )
+
+
+    db.commit()
+
+
+    return jsonify({
+        "message":"Сервер продлён"
     })
